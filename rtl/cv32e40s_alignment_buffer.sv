@@ -536,7 +536,7 @@ module cv32e40s_alignment_buffer import cv32e40s_pkg::*;
         rptr <= 'd0;
         is_clic_ptr_q   <= ctrl_fsm_i.pc_set_clicv;
         is_tbljmp_ptr_q <= ctrl_fsm_i.pc_set_tbljmp;
-        is_ptr_target_q <= (ctrl_Fsm_i.pc_mux == PC_POINTER);
+        is_ptr_target_q <= (ctrl_fsm_i.pc_mux == PC_POINTER);
       end else begin
         // Update write pointer on a valid response
         if (resp_valid_gated) begin
