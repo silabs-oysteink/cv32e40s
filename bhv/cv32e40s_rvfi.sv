@@ -711,7 +711,7 @@ module cv32e40s_rvfi
   // The pc_mux signals probe the MUX in the IF stage to extract information about events in the WB stage.
   // These signals are therefore used both in the WB stage to see effects of the executed instruction (e.g. rvfi_trap), and
   // in the IF stage to see the reason for executing the instruction (e.g. rvfi_intr).
-  assign pc_mux_interrupt       = (ctrl_fsm_i.pc_mux == PC_TRAP_IRQ);
+  assign pc_mux_interrupt       = (ctrl_fsm_i.pc_mux == PC_TRAP_IRQ) || (ctrl_fsm_i.pc_mux == PC_TRAP_CLICV);
   assign pc_mux_nmi             = (ctrl_fsm_i.pc_mux == PC_TRAP_NMI);
   assign pc_mux_debug           = (ctrl_fsm_i.pc_mux == PC_TRAP_DBD);
   assign pc_mux_exception       = (ctrl_fsm_i.pc_mux == PC_TRAP_EXC) || (ctrl_fsm_i.pc_mux == PC_TRAP_DBE) ;
