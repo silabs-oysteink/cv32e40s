@@ -1046,16 +1046,13 @@ parameter pma_cfg_t PMA_R_DEFAULT = '{word_addr_low   : 0,
                                       integrity       : 1'b0};
 
 // MPU status. Used for PMA
-typedef enum logic [2:0] {
-                          MPU_OK            = 3'h0,
-                          MPU_RE_FAULT      = 3'h1,
-                          MPU_WR_FAULT      = 3'h2,
-                          MPU_RE_MISALIGNED = 3'h3,
-                          MPU_WR_MISALIGNED = 3'h4
+typedef enum logic [1:0] {
+                          MPU_OK       = 2'h0,
+                          MPU_RE_FAULT = 2'h1,
+                          MPU_WR_FAULT = 2'h2
                           } mpu_status_e;
 
-typedef enum logic [3:0] {MPU_IDLE, MPU_RE_ERR_RESP, MPU_RE_ERR_WAIT, MPU_RE_MISALIGN_RESP, MPU_RE_MISALIGN_WAIT,
-                          MPU_WR_ERR_RESP, MPU_WR_ERR_WAIT, MPU_WR_MISALIGN_RESP, MPU_WR_MISALIGN_WAIT} mpu_state_e;
+typedef enum logic [2:0] {MPU_IDLE, MPU_RE_ERR_RESP, MPU_RE_ERR_WAIT, MPU_WR_ERR_RESP, MPU_WR_ERR_WAIT} mpu_state_e;
 
 // PMP constants
 parameter int unsigned PMP_MAX_REGIONS      = 64;
