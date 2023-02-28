@@ -390,21 +390,16 @@ module cv32e40s_controller_fsm import cv32e40s_pkg::*;
   assign ctrl_fsm_o.exception_in_wb = exception_in_wb;
 
   // Set exception cause
-  // For CLIC: Pointer fetches with PMA/PMP errors will get the exception code converted to LOAD_FAULT
-  //           Bus errors will be converted to NMI as for regular loads.
-  assign exception_cause_wb = (ex_wb_pipe_i.instr.mpu_status != MPU_OK)                                                      ? EXC_CAUSE_INSTR_FAULT     :
-                               ex_wb_pipe_i.instr.bus_resp.integrity_err                                                     ? EXC_CAUSE_INSTR_INTEGRITY_FAULT :
-                              ex_wb_pipe_i.instr.bus_resp.err                                                                ? EXC_CAUSE_INSTR_BUS_FAULT :
-                              ex_wb_pipe_i.illegal_insn                                                                      ? EXC_CAUSE_ILLEGAL_INSN    :
-                              (ex_wb_pipe_i.sys_en && ex_wb_pipe_i.sys_ecall_insn)                                           ? (priv_lvl_i==PRIV_LVL_M ?
-                                                                                                                                EXC_CAUSE_ECALL_MMODE :
-                                                                                                                                EXC_CAUSE_ECALL_UMODE )  :
+  assign exception_cause_wb = (ex_wb_pipe_i.instr.mpu_status != MPU_OK)                                                      ? EXC_CAUSE_INSTR_FAULT      :
+                              ex_wb_pipe_i.instr.bus_resp.err                                                                ? EXC_CAUSE_INSTR_BUS_FAULT  :
+                              ex_wb_pipe_i.illegal_insn                                                                      ? EXC_CAUSE_ILLEGAL_INSN     :
+                              (ex_wb_pipe_i.sys_en && ex_wb_pipe_i.sys_ecall_insn)                                           ? EXC_CAUSE_ECALL_MMODE      :
                               (ex_wb_pipe_i.sys_en && ex_wb_pipe_i.sys_ebrk_insn && (ex_wb_pipe_i.priv_lvl == PRIV_LVL_M) &&
-                                !dcsr_i.ebreakm && !debug_mode_q)                                                            ? EXC_CAUSE_BREAKPOINT      :
-                              (ex_wb_pipe_i.sys_en && ex_wb_pipe_i.sys_ebrk_insn && (ex_wb_pipe_i.priv_lvl == PRIV_LVL_U) &&
-                                !dcsr_i.ebreaku && !debug_mode_q)                                                            ? EXC_CAUSE_BREAKPOINT      :
-                              (mpu_status_wb_i == MPU_WR_FAULT)                                                              ? EXC_CAUSE_STORE_FAULT     :
-                              EXC_CAUSE_LOAD_FAULT; // (mpu_status_wb_i == MPU_RE_FAULT)
+                                !dcsr_i.ebreakm && !debug_mode_q)                                                            ? EXC_CAUSE_BREAKPOINT       :
+                              (mpu_status_wb_i == MPU_WR_FAULT)                                                              ? EXC_CAUSE_STORE_FAULT      :
+                              (mpu_status_wb_i == MPU_RE_FAULT)                                                              ? EXC_CAUSE_LOAD_FAULT       :
+                              (mpu_status_wb_i == MPU_WR_MISALIGNED)                                                         ? EXC_CAUSE_STORE_MISALIGNED :
+                                                                                                                               EXC_CAUSE_LOAD_MISALIGNED;
 
   assign ctrl_fsm_o.exception_cause_wb = exception_cause_wb;
 
@@ -547,12 +542,13 @@ module cv32e40s_controller_fsm import cv32e40s_pkg::*;
   // impact the current instruction in the pipeline).
   // If the core woke up from sleep due to interrupts, the wakeup reason will be honored
   // by not allowing async debug the cycle after wakeup.
-  assign async_debug_allowed = lsu_interruptible_i && !fencei_ongoing && !xif_in_wb && !clic_ptr_in_pipeline && sequence_interruptible && !woke_to_interrupt_q && !csr_flush_ack_q;
+  assign async_debug_allowed = lsu_interruptible_i && !fencei_ongoing && !xif_in_wb && !clic_ptr_in_pipeline && sequence_interruptible &&
+                               !woke_to_interrupt_q && !(ctrl_fsm_cs == SLEEP);
 
   // synchronous debug entry have far fewer restrictions than asynchronous entries. In principle synchronous debug entry should have the same
   // 'allowed' signal as exceptions - that is it should always be possible.
   // todo: When XIF is being finished, debug entry vs xif must be reevaluated.
-  assign sync_debug_allowed = !xif_in_wb;
+  assign sync_debug_allowed = !xif_in_wb && !(ctrl_fsm_cs == SLEEP);
 
   // Debug pending for any other synchronous reason than single step
   // Note that the WB stage may be killed for interrupts and NMIs, thus invalidating the instruction causing the sync debug entry.
@@ -608,12 +604,14 @@ module cv32e40s_controller_fsm import cv32e40s_pkg::*;
   //   - This is guarded with using the sequence_interruptible, which tracks sequence progress through the WB stage.
   // When a CLIC pointer is in the pipeline stages EX or WB, we must block interrupts.
   //   - Interrupt would otherwise kill the pointer and use the address of the pointer for mepc. A following mret would then return to the mtvt table, losing program progress.
-  assign interrupt_allowed = lsu_interruptible_i && debug_interruptible && !fencei_ongoing && !xif_in_wb && !clic_ptr_in_pipeline && sequence_interruptible && !interrupt_blanking_q && !csr_flush_ack_q;
+  assign interrupt_allowed = lsu_interruptible_i && debug_interruptible && !fencei_ongoing && !xif_in_wb && !clic_ptr_in_pipeline &&
+                             sequence_interruptible && !interrupt_blanking_q && !(ctrl_fsm_cs == SLEEP);
 
   // Allowing NMI's follow the same rule as regular interrupts, except we don't need to regard blanking of NMIs after a load/store.
   // If the core woke up from sleep due to either debug or regular interrupts, the wakeup reason is honored by not allowing NMIs in the cycle after
   // waking up to such an event.
-  assign nmi_allowed = lsu_interruptible_i && debug_interruptible && !fencei_ongoing && !xif_in_wb && !clic_ptr_in_pipeline && sequence_interruptible && !(woke_to_debug_q || woke_to_interrupt_q) && !csr_flush_ack_q;
+  assign nmi_allowed = lsu_interruptible_i && debug_interruptible && !fencei_ongoing && !xif_in_wb && !clic_ptr_in_pipeline &&
+                       sequence_interruptible && !(woke_to_debug_q || woke_to_interrupt_q) && !(ctrl_fsm_cs == SLEEP);
 
   // Do not allow interrupts if in debug mode, or single stepping without dcsr.stepie set.
   assign debug_interruptible = !(debug_mode_q || (dcsr_i.step && !dcsr_i.stepie));
