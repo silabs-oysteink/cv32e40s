@@ -124,6 +124,7 @@ package cv32e40s_rvfi_pkg;
     logic        debug;
     logic        exception;
     logic        trap;
+    logic        clicptr;
   } rvfi_trap_t;
 
   typedef struct packed {
